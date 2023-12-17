@@ -42,9 +42,11 @@ import requests
 
 
 # Load the GBC model for domain prediction
-file = open("./model.pkl", "rb")
-gbc = pickle.load(file)
-file.close()
+# file = open("./model.pkl", "rb")
+# gbc = pickle.load(file)
+# file.close()
+
+gbc = joblib.load('model.pkl')
 
 class FeatureExtraction:
     features = []
