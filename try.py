@@ -2,7 +2,7 @@ import requests
 import json
 
 # Set the base URL of your Flask app
-base_url = "http://127.0.0.1:5000/"  # Change this to your Flask app's URL
+base_url = "http://35.154.253.128"  # Change this to your Flask app's URL
 
 # Test data for URL classification
 url_test_data = {
@@ -71,9 +71,27 @@ def test_url_content_prediction():
     else:
         print("URL Content Phishing Prediction Failed:", response.text)
 
+def test_domain_similarity():
+    response = requests.post(f"{base_url}/predictsimilarity", json=domain_test_data)
+    if response.status_code == 200:
+        print(f"Similarity: {response.json()}")
+    else:
+        print(f"Request failed with status code: {response.status_code}")
+        print(f"Error message: {response.text}")
+
+def test_domain_combined():
+    response = requests.post(f"{base_url}/predictcombined", json=domain_test_data)
+    if response.status_code == 200:
+        print(f"Non Phishing Probability: {response.json()}")
+    else:
+        print(f"Request failed with status code: {response.status_code}")
+        print(f"Error message: {response.text}")
+
 if __name__ == "__main__":
     # test_url_classification()
     # test_sms_classification()
-  #  test_content_extraction()
+    # test_content_extraction()
     # test_url_content_prediction()
-    test_domain_prediction()
+    # test_domain_prediction()
+    # test_domain_similarity()
+    test_domain_combined()
