@@ -535,6 +535,91 @@ CORS(app)
 # Load URL classification model
 classifier = joblib.load('./url_model.sav')  # Adjust the path if necessary
 
+# Similarity
+def analyze_website_similarity(domain, threshold=0.6):
+    model_name = 'bert-base-uncased'
+    tokenizer = BertTokenizer.from_pretrained(model_name)
+    model = BertModel.from_pretrained(model_name)
+
+    def extract_website_content(url):
+        if not url.startswith('http'):
+            url = 'https://' + url
+        
+        try:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                return response.text
+            else:
+                return f"Failed to fetch content. Status code: {response.status_code}"
+        except requests.RequestException as e:
+            return f"Error: {e}"
+
+    def extract_title_and_body(html_content):
+        soup = BeautifulSoup(html_content, 'html.parser')
+        title = soup.title.text if soup.title else "No title found"
+        body = soup.body.text if soup.body else "No body found"
+        body_with_single_space = ' '.join(body.split())  # Adding a single space after every word
+        return title, body_with_single_space
+
+    def get_bert_embedding(text):
+        tokens = tokenizer.encode(text, return_tensors='pt', truncation=True, max_length=512)
+
+        with torch.no_grad():
+            outputs = model(tokens)
+            embeddings = outputs.last_hidden_state.mean(dim=1).squeeze()
+
+        return embeddings
+
+    def check_similarity(title, body):
+        title_embedding = get_bert_embedding(title)
+        body_embedding = get_bert_embedding(body)
+
+        similarity_score = 1 - cosine(title_embedding, body_embedding)
+        return similarity_score
+
+    content = extract_website_content(domain)
+
+    if content:
+        title, body = extract_title_and_body(content)
+#         print(body)
+        if title.strip() =="No title found" or body.strip() == "No body found":
+            print('Phishing: Title or Body is empty.')
+            return 0
+#         print(body)
+        similarity = check_similarity(title, body)
+        return similarity
+    else:
+        print("Content extraction failed.")
+
+whitelist = pd.read_csv("whitelist.csv")
+whitelist["domain"] = whitelist["domain"].str.strip()
+whitelist_array = whitelist["domain"].values
+
+# Removing 'www.' prefix from the whitelist domains if present
+whitelist_array = np.array([domain.lstrip('www.') for domain in whitelist_array])
+
+def isPresent(url):
+    # Removing 'www.' prefix from sitename if present
+    url = url.lstrip('www.')
+    url = url.lstrip('https?://')
+
+    if url not in whitelist_array:
+        return -1
+    return 1
+
+def check_top_level_domain_presence(url):
+    top_level_domains = ['.org', '.edu', '.gov', '.mil', '.net', '.int', '.gov.in']
+
+    parsed_url = urlparse(url)
+    domain = parsed_url.netloc.lower()
+
+    for tld in top_level_domains:
+        if domain.endswith(tld):
+            return 1
+
+    return -1
+
+
 
 import pickle
 
@@ -611,67 +696,23 @@ def get_content():
 
 
 @app.route('/predictsimilarity', methods=['POST'])
-def analyze_website_similarity():
-    try:
-        model_name = 'bert-base-uncased'
-        tokenizer = BertTokenizer.from_pretrained(model_name)
-        model = BertModel.from_pretrained(model_name)
+def predict_similarity():
+    data = request.get_json()
+    sitename = data.get('url')
+    if isPresent(sitename) == 1:
+        phish_prob=0
+    elif check_top_level_domain_presence(sitename) == 1:
+        phish_prob = 0
+    else:
+        phish_prob=1-(analyze_website_similarity(sitename))
 
-        # Extracting 'domain' and 'threshold' from the request data
-        request_data = request.json
-        url = request_data.get('url')
-        threshold = request_data.get('threshold', 0.6)  # Default threshold as 0.6 if not provided
+    if phish_prob>=0.5:
+        result_set = ["Phishing"]
+        return jsonify({"result": result_set})
+    else:
+        result_set = ["Non Phishing"]
+        return jsonify({"result": result_set})
 
-        def extract_website_content(url):
-            if not url.startswith('http'):
-                url = 'https://' + url
-            
-            try:
-                response = requests.get(url)
-                if response.status_code == 200:
-                    return response.text
-                else:
-                    return f"Failed to fetch content. Status code: {response.status_code}"
-            except requests.RequestException as e:
-                return f"Error: {e}"
-
-        def extract_title_and_body(html_content):
-            soup = BeautifulSoup(html_content, 'html.parser')
-            title = soup.title.text if soup.title else "No title found"
-            body = soup.body.text if soup.body else "No body found"
-            body_with_single_space = ' '.join(body.split())  # Adding a single space after every word
-            return title, body_with_single_space
-
-        def get_bert_embedding(text):
-            tokens = tokenizer.encode(text, return_tensors='pt', truncation=True, max_length=512)
-
-            with torch.no_grad():
-                outputs = model(tokens)
-                embeddings = outputs.last_hidden_state.mean(dim=1).squeeze()
-
-            return embeddings
-
-        def check_similarity(title, body):
-            title_embedding = get_bert_embedding(title)
-            body_embedding = get_bert_embedding(body)
-
-            similarity_score = 1 - cosine(title_embedding, body_embedding)
-            return similarity_score
-
-        content = extract_website_content(url)
-
-        if content:
-            title, body = extract_title_and_body(content)
-            if title.strip() == "No title found" or body.strip() == "No body found":
-                return jsonify({"similarity": 0})
-
-            similarity = check_similarity(title, body)
-            return jsonify({"similarity": similarity})
-        else:
-            return jsonify({"similarity": 0})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
 @app.route('/predictcombined', methods=['POST'])
 def predict_combined():
     if request.is_json:

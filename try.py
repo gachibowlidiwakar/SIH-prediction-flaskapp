@@ -2,7 +2,7 @@ import requests
 import json
 
 # Set the base URL of your Flask app
-base_url = "http://35.154.253.128"  # Change this to your Flask app's URL
+base_url = "http://127.0.0.1:5000"  # Change this to your Flask app's URL
 
 # Test data for URL classification
 url_test_data = {
@@ -27,7 +27,7 @@ url_content_test_data = {
 
 # Test data for domain prediction
 domain_test_data = {
-    "url": "openai.com"   # Replace with a test URL for domain prediction
+    "url": "http://ncert.nic.in"   # Replace with a test URL for domain prediction
 }
 
 # Function to test domain prediction
@@ -74,7 +74,7 @@ def test_url_content_prediction():
 def test_domain_similarity():
     response = requests.post(f"{base_url}/predictsimilarity", json=domain_test_data)
     if response.status_code == 200:
-        print(f"Similarity: {response.json()}")
+        print(f"{response.json()}")
     else:
         print(f"Request failed with status code: {response.status_code}")
         print(f"Error message: {response.text}")
@@ -93,5 +93,5 @@ if __name__ == "__main__":
     # test_content_extraction()
     # test_url_content_prediction()
     # test_domain_prediction()
-    # test_domain_similarity()
-    test_domain_combined()
+    test_domain_similarity()
+    # test_domain_combined()
