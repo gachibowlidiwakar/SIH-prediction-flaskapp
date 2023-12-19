@@ -635,8 +635,11 @@ import pickle
 model = load_model('./sms_model5.h5')
 
 def extract_website_content(url):
+    if not url.startswith('http'):
+        url = 'http://' + url
+            
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             return response.text
         else:
@@ -650,8 +653,6 @@ def extract_title_and_body(html_content):
     body = soup.body.text if soup.body else "No body found"
     body_with_single_space = ' '.join(body.split())  # Adding a single space after every word
     return title, body_with_single_space
-
-
 
 # URL Feature Extraction Functions
 # (Include all the helper functions here, like age_of_domain, dns_record, etc.)
@@ -719,7 +720,7 @@ def predict_similarity():
 
         def extract_website_content(url):
             if not url.startswith('http'):
-                url = 'https://' + url
+                url = 'http://' + url
             
             try:
                 response = requests.get(url, timeout=10)
