@@ -1,3 +1,4 @@
+from ctypes import _NamedFuncPointer
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import joblib
@@ -529,7 +530,7 @@ class FeatureExtraction:
 
 
 # Initialize Flask App
-app = Flask(_name_)
+app = Flask(_NamedFuncPointer)
 CORS(app)
 
 # Load URL classification model
@@ -1096,5 +1097,5 @@ def predict_sms():
     predicted_class = label_mapping[predicted_label]
     return jsonify({'prediction': predicted_class})
 
-if _name_ == "_main_":
+if __name__ == "_main_":
     app.run()
