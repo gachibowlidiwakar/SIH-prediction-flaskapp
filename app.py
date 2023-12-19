@@ -770,7 +770,7 @@ def predict_similarity():
                message = 'Body is empty.'
                phish_prob = 1
                return jsonify({"phishing_probability": phish_prob, "message": message})
-    #         print(body)
+
             similarity = check_similarity(title, body)
             # return similarity
             phish_prob = 1 - similarity
