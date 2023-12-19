@@ -2,7 +2,7 @@ import requests
 import json
 
 # Set the base URL of your Flask app
-base_url = "http://127.0.0.1:5000"  # Change this to your Flask app's URL
+base_url = "http://35.154.253.128"  # Change this to your Flask app's URL
 
 # Test data for URL classification
 url_test_data = {
