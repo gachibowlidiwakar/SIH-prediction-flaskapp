@@ -596,7 +596,7 @@ whitelist["domain"] = whitelist["domain"].str.strip()
 whitelist_array = whitelist["domain"].values
 
 # Removing 'www.' prefix from the whitelist domains if present
-whitelist_array = np.array([domain.lstrip('www.') for domain in whitelist_array])
+whitelist_array = np.array([re.sub(r'https?://(www\.)?', '', domain.strip()) for domain in whitelist_array])
 
 def isPresent(url):
     # Removing 'www.' prefix from sitename if present
@@ -702,6 +702,7 @@ def get_content():
 def predict_similarity():
     data = request.get_json()
     sitename = data.get('url')
+    sitename = re.sub(r'https?://(www\.)?', '', sitename.strip())
     if isPresent(sitename) == 1:
         phish_prob=0
         message = "Domain is safe"
