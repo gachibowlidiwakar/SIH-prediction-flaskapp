@@ -707,11 +707,9 @@ def predict_similarity():
         phish_prob=1-(analyze_website_similarity(sitename))
 
     if phish_prob>=0.5:
-        result_set = ["Phishing"]
-        return jsonify({"result": result_set})
+        return jsonify({"phishing_probability": phish_prob})
     else:
-        result_set = ["Non Phishing"]
-        return jsonify({"result": result_set})
+        return jsonify({"phishing_probablility": phish_prob})
 
 @app.route('/predictcombined', methods=['POST'])
 def predict_combined():

@@ -27,7 +27,7 @@ url_content_test_data = {
 
 # Test data for domain prediction
 domain_test_data = {
-    "url": "http://ncert.nic.in"   # Replace with a test URL for domain prediction
+    "url": "https://index.index-web-ib-mizu.is"   # Replace with a test URL for domain prediction
 }
 
 # Function to test domain prediction
