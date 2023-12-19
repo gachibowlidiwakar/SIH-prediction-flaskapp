@@ -610,6 +610,9 @@ def isPresent(url):
 def check_top_level_domain_presence(url):
     top_level_domains = ['.org', '.edu', '.gov', '.mil', '.net', '.int', '.gov.in']
 
+    if not url.startswith('http'):
+            url = 'https://' + url
+
     parsed_url = urlparse(url)
     domain = parsed_url.netloc.lower()
 
@@ -701,15 +704,89 @@ def predict_similarity():
     sitename = data.get('url')
     if isPresent(sitename) == 1:
         phish_prob=0
+        message = "Domain is safe"
+        return jsonify({"phishing_probability": phish_prob, "message": message})
     elif check_top_level_domain_presence(sitename) == 1:
         phish_prob = 0
+        message = "Restricted top level domain"
+        return jsonify({"phishing_probability": phish_prob, "message": message})
     else:
-        phish_prob=1-(analyze_website_similarity(sitename))
+    #     phish_prob=1-(analyze_website_similarity(sitename))
+        model_name = 'bert-base-uncased'
+        tokenizer = BertTokenizer.from_pretrained(model_name)
+        model = BertModel.from_pretrained(model_name)
 
-    if phish_prob>=0.5:
-        return jsonify({"phishing_probability": phish_prob})
-    else:
-        return jsonify({"phishing_probablility": phish_prob})
+        def extract_website_content(url):
+            if not url.startswith('http'):
+                url = 'https://' + url
+            
+            try:
+                response = requests.get(url, timeout=10)
+                if response.status_code == 200:
+                    return response.text
+                else:
+                    return f"Failed to fetch content. Status code: {response.status_code}"
+            except requests.RequestException as e:
+                return f"Error: {e}"
+
+        def extract_title_and_body(html_content):
+            soup = BeautifulSoup(html_content, 'html.parser')
+            title = soup.title.text if soup.title else "No title found"
+            body = soup.body.text if soup.body else "No body found"
+            body_with_single_space = ' '.join(body.split())  # Adding a single space after every word
+            return title, body_with_single_space
+
+        def get_bert_embedding(text):
+            tokens = tokenizer.encode(text, return_tensors='pt', truncation=True, max_length=512)
+
+            with torch.no_grad():
+                outputs = model(tokens)
+                embeddings = outputs.last_hidden_state.mean(dim=1).squeeze()
+
+            return embeddings
+
+        def check_similarity(title, body):
+            title_embedding = get_bert_embedding(title)
+            body_embedding = get_bert_embedding(body)
+
+            similarity_score = 1 - cosine(title_embedding, body_embedding)
+            return similarity_score
+
+        content = extract_website_content(sitename)
+
+        if content:
+            title, body = extract_title_and_body(content)
+    #         print(body)
+            if title.strip() =="No title found" and body.strip() == "No body found":
+               message = 'Title and Body is empty.'
+               phish_prob = 1
+               return jsonify({"phishing_probability": phish_prob, "message": message})
+            elif title.strip() =="No title found":
+               message = 'Title is empty.'
+               phish_prob = 1
+               return jsonify({"phishing_probability": phish_prob, "message": message})
+            elif title.strip() ==body.strip() == "No body found":
+               message = 'Body is empty.'
+               phish_prob = 1
+               return jsonify({"phishing_probability": phish_prob, "message": message})
+    #         print(body)
+            similarity = check_similarity(title, body)
+            # return similarity
+            phish_prob = 1 - similarity
+            if phish_prob >= 0.5:
+                message = "Domain is unsafe"
+            else:
+                message = "Domain is safe"
+            return jsonify({"phishing_probability": phish_prob, "message": message})
+        else:
+            print("Content extraction failed.")
+
+        
+
+    # if phish_prob>=0.5:
+    #     return jsonify({"phishing_probability": phish_prob})
+    # else:
+    #     return jsonify({"phishing_probablility": phish_prob})
 
 @app.route('/predictcombined', methods=['POST'])
 def predict_combined():
