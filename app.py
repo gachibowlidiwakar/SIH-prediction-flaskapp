@@ -50,7 +50,7 @@ file.close()
 
 class FeatureExtraction:
     features = []
-    def __init__(self,url):
+    def _init_(self,url):
         self.features = []
         self.url = url
         self.domain = ""
@@ -529,7 +529,7 @@ class FeatureExtraction:
 
 
 # Initialize Flask App
-app = Flask(__name__)
+app = Flask(_name_)
 CORS(app)
 
 # Load URL classification model
@@ -635,8 +635,11 @@ import pickle
 model = load_model('./sms_model5.h5')
 
 def extract_website_content(url):
+    if not url.startswith('http'):
+        url = 'http://' + url
+            
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             return response.text
         else:
@@ -650,8 +653,6 @@ def extract_title_and_body(html_content):
     body = soup.body.text if soup.body else "No body found"
     body_with_single_space = ' '.join(body.split())  # Adding a single space after every word
     return title, body_with_single_space
-
-
 
 # URL Feature Extraction Functions
 # (Include all the helper functions here, like age_of_domain, dns_record, etc.)
@@ -719,7 +720,7 @@ def predict_similarity():
 
         def extract_website_content(url):
             if not url.startswith('http'):
-                url = 'https://' + url
+                url = 'http://' + url
             
             try:
                 response = requests.get(url, timeout=10)
@@ -1037,6 +1038,29 @@ def extractfeature(url):
   
   return feature
 
+from flask import request, jsonify
+import difflib
+
+@app.route('/findsimilar', methods=['POST'])
+def find_similar_domains():
+    # Read the uploaded file
+    file = request.files['file']
+    domain_names = file.read().decode('utf-8').splitlines()
+
+    # Get the URL from the form data
+    url = request.form['url']
+
+    # Process for similarity
+    similarities = []
+    for domain in domain_names:
+        ratio = difflib.SequenceMatcher(None, domain, url).ratio()
+        similarities.append((domain, ratio))
+
+    # Sort based on similarity and take top 10
+    top_similarities = sorted(similarities, key=lambda x: x[1], reverse=True)[:10]
+
+    return jsonify(top_similarities)
+
 
 @app.route('/predictsms', methods=['POST'])
 def predict_sms():
@@ -1072,5 +1096,5 @@ def predict_sms():
     predicted_class = label_mapping[predicted_label]
     return jsonify({'prediction': predicted_class})
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     app.run()
