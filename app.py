@@ -1,3 +1,4 @@
+from ctypes import _NamedFuncPointer
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import joblib
@@ -50,7 +51,7 @@ file.close()
 
 class FeatureExtraction:
     features = []
-    def __init__(self,url):
+    def _init_(self,url):
         self.features = []
         self.url = url
         self.domain = ""
@@ -529,7 +530,7 @@ class FeatureExtraction:
 
 
 # Initialize Flask App
-app = Flask(__name__)
+app = Flask(_NamedFuncPointer)
 CORS(app)
 
 # Load URL classification model
@@ -1038,6 +1039,29 @@ def extractfeature(url):
   
   return feature
 
+from flask import request, jsonify
+import difflib
+
+@app.route('/findsimilar', methods=['POST'])
+def find_similar_domains():
+    # Read the uploaded file
+    file = request.files['file']
+    domain_names = file.read().decode('utf-8').splitlines()
+
+    # Get the URL from the form data
+    url = request.form['url']
+
+    # Process for similarity
+    similarities = []
+    for domain in domain_names:
+        ratio = difflib.SequenceMatcher(None, domain, url).ratio()
+        similarities.append((domain, ratio))
+
+    # Sort based on similarity and take top 10
+    top_similarities = sorted(similarities, key=lambda x: x[1], reverse=True)[:10]
+
+    return jsonify(top_similarities)
+
 
 @app.route('/predictsms', methods=['POST'])
 def predict_sms():
@@ -1073,5 +1097,5 @@ def predict_sms():
     predicted_class = label_mapping[predicted_label]
     return jsonify({'prediction': predicted_class})
 
-if __name__ == "__main__":
+if __name__ == "_main_":
     app.run()
