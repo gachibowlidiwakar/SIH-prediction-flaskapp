@@ -1,9 +1,8 @@
-from ctypes import _NamedFuncPointer
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 import joblib
 import pandas as pd
-from urllib.parse import urlparse, unquote
+from urllib.parse import urlparse, unquote, urljoin
 import re
 import socket
 import whois
@@ -16,29 +15,98 @@ from keras.models import load_model
 import requests
 from bs4 import BeautifulSoup
 import ipaddress
-import re
-import urllib.request
-from bs4 import BeautifulSoup
-import socket
-import requests
 from googlesearch import search
-import whois
-from datetime import date, datetime
-import time
 from dateutil.parser import parse as date_parse
-from urllib.parse import urlparse
-from flask import Flask, request, render_template
-import numpy as np
-import pandas as pd
 from sklearn import metrics 
 import warnings
+
+from thefuzz import fuzz, process
+import nltk
+from sklearn.feature_extraction.text import TfidfVectorizer
 import pickle
 warnings.filterwarnings('ignore')
 from transformers import BertTokenizer, BertModel
 import torch
 from scipy.spatial.distance import cosine
-from bs4 import BeautifulSoup
-import requests
+from skimage.metrics import structural_similarity as ssim
+import cv2
+from io import BytesIO
+from PIL import Image
+
+# Download NLTK resources
+nltk.download('punkt')
+nltk.download('stopwords')
+
+
+
+def get_favicon_url(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        favicon_tag = soup.find('link', rel='icon') or soup.find('link', rel='shortcut icon')
+
+        if favicon_tag and 'href' in favicon_tag.attrs:
+            favicon_url = favicon_tag['href']
+
+            if not favicon_url.startswith(('http:', 'https:')):
+                favicon_url = urljoin(url, favicon_url)
+            return favicon_url
+
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching {url}: {e}"
+
+def load_image(url):
+    response = requests.get(url)
+    return Image.open(BytesIO(response.content))
+
+def resize_image(image, size):
+    return image.resize(size, Image.ANTIALIAS)
+
+def pil_to_opencv(image_pil):
+    return np.array(image_pil)
+
+def get_ssi_index(image1, image2):
+    size = (3000, 3000)
+    image1 = resize_image(image1, size)
+    image2 = resize_image(image2, size)
+
+    # Convert images to NumPy arrays
+    array1 = pil_to_opencv(image1)
+    array2 = pil_to_opencv(image2)
+
+    # Convert images to grayscale if they have multiple channels
+    if len(array1.shape) == 3:
+        gray1 = cv2.cvtColor(array1, cv2.COLOR_RGB2GRAY)
+    else:
+        gray1 = array1
+
+    if len(array2.shape) == 3:
+        gray2 = cv2.cvtColor(array2, cv2.COLOR_RGB2GRAY)
+    else:
+        gray2 = array2
+
+    # Compute Structural Similarity Index (SSI)
+    ssi_index, _ = ssim(gray1, gray2, full=True)
+
+    # Compute Mean Squared Error (MSE)
+    # mse = mean_squared_error(gray1, gray2)
+    return ssi_index
+
+def compare_favicon(url1, url2):
+    favicon_url1 = get_favicon_url(url1)
+    favicon_url2 = get_favicon_url(url2)
+    try:
+        favicon1 = load_image(favicon_url1)
+        favicon2 = load_image(favicon_url2)
+        ssi_index = get_ssi_index(favicon1, favicon2)
+        return ssi_index
+    except Exception as e:
+        return f"Error comparing favicons: {str(e)}"
+
+
+
 
 
 
@@ -51,7 +119,7 @@ file.close()
 
 class FeatureExtraction:
     features = []
-    def _init_(self,url):
+    def __init__(self,url):
         self.features = []
         self.url = url
         self.domain = ""
@@ -530,7 +598,7 @@ class FeatureExtraction:
 
 
 # Initialize Flask App
-app = Flask(_NamedFuncPointer)
+app = Flask(__name__)
 CORS(app)
 
 # Load URL classification model
@@ -661,6 +729,27 @@ def extract_title_and_body(html_content):
 @app.route('/')
 def hello_world():
     return 'Hello World!'
+
+
+@app.route('/compareFavicon', methods=['POST'])
+def compare_favicon_route():
+    try:
+        data = request.get_json()
+        url1 = data.get('url1')
+        url2 = data.get('url2')
+
+        if not url1 or not url2:
+            return jsonify({'error': 'Please provide both URLs'}), 400
+
+        result = compare_favicon(url1, url2)
+
+        if isinstance(result, str):
+            return jsonify({'error': result}), 500
+
+        return jsonify({'ssi_index': result})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 
@@ -1063,6 +1152,94 @@ def find_similar_domains():
     return jsonify(top_similarities)
 
 
+   # Function to calculate similarity percentage
+def calculate_similarity(paragraph1, paragraph2):
+    sentences = [paragraph1, paragraph2]
+    vectorizer = TfidfVectorizer()
+    tfidf_matrix = vectorizer.fit_transform(sentences)
+    cosine_sim = (tfidf_matrix * tfidf_matrix.T).A
+    similarity_percentage = cosine_sim[0, 1] * 100
+    return similarity_percentage
+
+def extract_website_content2(url):
+    if not url.startswith('http'):
+        url = 'http://' + url
+            
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            return response.text
+        else:
+            return f"Failed to fetch content. Status code: {response.status_code}"
+    except requests.RequestException as e:
+        return f"Error: {e}"
+
+def extract_title_and_body2(html_content):
+    soup = BeautifulSoup(html_content, 'html.parser')
+    title = soup.title.text if soup.title else "No title found"
+    body = soup.body.text if soup.body else "No body found"
+    body_with_single_space = ' '.join(body.split())  # Adding a single space after every word
+    return body_with_single_space
+
+@app.route('/autophish2', methods=['POST'])
+def autophish2():
+    file = request.files['file']
+    child_domains = file.read().decode('utf-8').splitlines()
+    
+    parent_data = pd.read_csv("whitelist2.csv")
+    parent_domains = parent_data['domain'].values
+
+    threshold_ratio = 55
+    parent_child_dict = {}
+
+    for parent in parent_domains:
+        matching_children = []
+        for child in child_domains:
+            ratio = fuzz.ratio(parent, child)
+            if ratio >= threshold_ratio:
+                # Fetch content from parent and child domains
+                parent_content = extract_website_content2(parent)
+                child_content = extract_website_content2(child)
+                #if parent and child both are not null , if any one none then similarity zero 
+                if parent_content=='No body found' or child_content=="No body found":
+                    similarity=0
+                # Calculate similarity
+                else:
+                    similarity = calculate_similarity(parent_content, child_content)
+                matching_children.append((child, similarity))
+        if matching_children:
+            parent_child_dict[parent] = matching_children
+
+    return jsonify(parent_child_dict)
+
+@app.route('/autophish', methods=['POST'])
+def autophish():
+    file = request.files['file']
+    # Read the file content into a list of domain names
+    child_domains = file.read().decode('utf-8').splitlines()
+    
+    # Assuming you have another file for phishing domains
+        
+
+    parent_data = pd.read_csv("whitelist2.csv")
+    parent_domains = parent_data['domain'].values
+
+
+    threshold_ratio = 55
+    parent_child_dict = {}
+
+    for parent in parent_domains:   
+        matching_children = []
+        for child in child_domains:
+            ratio = fuzz.ratio(parent, child)
+            if ratio >= threshold_ratio:
+                matching_children.append(child)
+        if matching_children:
+            parent_child_dict[parent] = matching_children
+
+    return jsonify(parent_child_dict)
+
+
 @app.route('/predictsms', methods=['POST'])
 def predict_sms():
     # Load the dataset
@@ -1097,5 +1274,5 @@ def predict_sms():
     predicted_class = label_mapping[predicted_label]
     return jsonify({'prediction': predicted_class})
 
-if __name__ == "_main_":
+if __name__ == "__main__":
     app.run()
